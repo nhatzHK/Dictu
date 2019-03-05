@@ -8,7 +8,7 @@
 #include "vm.h"
 #include "util.h"
 
-#include "linenoise.h"
+#include <linenoise.h>
 
 #define VERSION "Dictu Version: 0.1.1\n"
 
