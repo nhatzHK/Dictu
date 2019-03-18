@@ -134,7 +134,7 @@ static bool replaceString(int argCount) {
 
     int length = strlen(string) - count * (strlen(to_replace) - strlen(replace)) + 1;
     char *pos;
-    char *newStr = malloc(sizeof(char) * length);
+    char *newStr = malloc(sizeof(char) * (length + 1));
 
     for (int i = 0; i < count; ++i) {
         pos = strstr(string, to_replace);
@@ -142,15 +142,15 @@ static bool replaceString(int argCount) {
             *pos = '\0';
 
         if (i == 0)
-            strncpy(newStr, string, strlen(string));
+            strncpy(newStr, string, length - 1);
         else
-            strncat(newStr, string, strlen(string));
+            strncat(newStr, string, length - 1);
 
-        strncat(newStr, replace, strlen(replace));
+        strncat(newStr, replace, length - 1);
         string = pos + strlen(to_replace);
     }
 
-    strncat(newStr, string, strlen(string));
+    strncat(newStr, string, length - 1);
     ObjString *newString = copyString(newStr, length - 1);
     free(newStr);
     push(OBJ_VAL(newString));
