@@ -21,6 +21,8 @@
 #include "vm.h"
 #include "util.h"
 #include "collections.h"
+#include "strings.h"
+#include "files.h"
 
 VM vm; // [one]
 
@@ -56,6 +58,8 @@ void runtimeError(const char *format, ...) {
         fputs("\n", stderr);
         va_end(args);
     }
+
+    resetStack();
 }
 
 
@@ -89,6 +93,7 @@ void initVM(bool repl) {
     initTable(&vm.globals);
     initTable(&vm.strings);
     vm.initString = copyString("init", 4);
+    vm.replVar = copyString("_", 1);
     defineAllNatives();
 }
 
@@ -96,6 +101,7 @@ void freeVM() {
     freeTable(&vm.globals);
     freeTable(&vm.strings);
     vm.initString = NULL;
+    vm.replVar = NULL;
     freeObjects();
     freeLists();
 }
@@ -238,6 +244,10 @@ static bool invoke(ObjString *name, int argCount) {
         return listMethods(name->chars, argCount + 1);
     } else if (IS_DICT(receiver)) {
         return dictMethods(name->chars, argCount + 1);
+    } else if (IS_STRING(receiver)) {
+        return stringMethods(name->chars, argCount + 1);
+    } else if (IS_FILE(receiver)) {
+        return fileMethods(name->chars, argCount + 1);
     }
 
     if (!IS_INSTANCE(receiver)) {
@@ -369,8 +379,7 @@ static void concatenate() {
 }
 
 static void setReplVar(Value value) {
-    ObjString *replVariable = copyString("_", 1);
-    tableSet(&vm.globals, replVariable, value);
+    tableSet(&vm.globals, vm.replVar, value);
 }
 
 static InterpretResult run() {
@@ -448,6 +457,12 @@ static InterpretResult run() {
             }
 
             case OP_POP: {
+                if (IS_FILE(peek(0))) {
+                    ObjFile *file = AS_FILE(peek(0));
+                    fclose(file->file);
+                    collectGarbage();
+                }
+
                 pop();
                 break;
             }
@@ -994,6 +1009,37 @@ static InterpretResult run() {
             case OP_METHOD:
                 defineMethod(READ_STRING());
                 break;
+
+            case OP_OPEN_FILE: {
+                Value openType = pop();
+                Value fileName = pop();
+
+                if (!IS_STRING(openType)) {
+                    runtimeError("File open type must be a string");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                if (!IS_STRING(fileName)) {
+                    runtimeError("Filename must be a string");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjString *openTypeString = AS_STRING(openType);
+                ObjString *fileNameString = AS_STRING(fileName);
+
+                ObjFile *file = initFile();
+                file->file = fopen(fileNameString->chars, openTypeString->chars);
+                file->path = fileNameString->chars;
+                file->openType = openTypeString->chars;
+
+                if (file->file == NULL) {
+                    runtimeError("Unable to open file");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                push(OBJ_VAL(file));
+                break;
+            }
         }
     }
 
@@ -1027,7 +1073,7 @@ static Value clockNative(int argCount, Value *args) {
 
 static Value numberNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("number() takes exactly one argument (%d given).", argCount);
+        runtimeError("number() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1044,7 +1090,7 @@ static Value numberNative(int argCount, Value *args) {
 
 static Value strNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("str() takes exactly one argument (%d given).", argCount);
+        runtimeError("str() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1067,7 +1113,7 @@ static Value strNative(int argCount, Value *args) {
 
 static Value typeNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("str() takes exactly one argument (%d given).", argCount);
+        runtimeError("type() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1096,7 +1142,7 @@ static Value typeNative(int argCount, Value *args) {
 
 static Value lenNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("len() takes exactly one argument (%d given).", argCount);
+        runtimeError("len() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1104,9 +1150,11 @@ static Value lenNative(int argCount, Value *args) {
         return NUMBER_VAL(AS_STRING(args[0])->length);
     } else if (IS_LIST(args[0])) {
         return NUMBER_VAL(AS_LIST(args[0])->values.count);
+    } else if (IS_DICT(args[0])) {
+        return NUMBER_VAL(AS_DICT(args[0])->count);
     }
 
-    runtimeError("len() only takes a string or a list as an argument.", argCount);
+    runtimeError("Unsupported type passed to len()", argCount);
     return NIL_VAL;
 }
 
@@ -1218,7 +1266,7 @@ static Value averageNative(int argCount, Value *args) {
 
 static Value floorNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("floor() takes exactly one argument (%d given).", argCount);
+        runtimeError("floor() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1228,7 +1276,7 @@ static Value floorNative(int argCount, Value *args) {
 
 static Value roundNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("round() takes exactly one argument (%d given).", argCount);
+        runtimeError("round() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1238,7 +1286,7 @@ static Value roundNative(int argCount, Value *args) {
 
 static Value ceilNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("ceil() takes exactly one argument (%d given).", argCount);
+        runtimeError("ceil() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1248,7 +1296,7 @@ static Value ceilNative(int argCount, Value *args) {
 
 static Value absNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("abs() takes exactly one argument (%d given).", argCount);
+        runtimeError("abs() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1262,7 +1310,7 @@ static Value absNative(int argCount, Value *args) {
 
 static Value boolNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("bool() takes exactly one argument (%d given).", argCount);
+        runtimeError("bool() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1272,7 +1320,7 @@ static Value boolNative(int argCount, Value *args) {
 
 static Value inputNative(int argCount, Value *args) {
     if (argCount > 1) {
-        runtimeError("input() takes at most one argument (%d given).", argCount);
+        runtimeError("input() takes exactly 1 argument (%d given).", argCount);
         return NIL_VAL;
     }
 
@@ -1321,7 +1369,7 @@ static Value inputNative(int argCount, Value *args) {
 
 static void sleepNative(int argCount, Value *args) {
     if (argCount != 1) {
-        runtimeError("sleep() takes exactly one argument (%d  given)", argCount);
+        runtimeError("sleep() takes exactly 1 argument (%d  given)", argCount);
         return;
     }
 
@@ -1363,6 +1411,10 @@ static void assertNative(int argCount, Value *args) {
     value = AS_BOOL(value);
     if (!value)
         runtimeError("assert() was false!");
+}
+
+static void collectNative(int argCount, Value *args) {
+    collectGarbage();
 }
 
 // End of natives
@@ -1409,13 +1461,15 @@ void defineAllNatives() {
     char *nativeVoidNames[] = {
             "sleep",
             "print",
-            "assert"
+            "assert",
+            "collect"
     };
 
     NativeFnVoid nativeVoidFunctions[] = {
             sleepNative,
             printNative,
-            assertNative
+            assertNative,
+            collectNative
     };
 
 

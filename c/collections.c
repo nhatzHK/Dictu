@@ -4,7 +4,7 @@
 
 static bool pushListItem(int argCount) {
     if (argCount != 2) {
-        runtimeError("push() takes two arguments (%d given)", argCount);
+        runtimeError("push() takes 2 arguments (%d given)", argCount);
         return false;
     }
 
@@ -19,12 +19,12 @@ static bool pushListItem(int argCount) {
 
 static bool insertListItem(int argCount) {
     if (argCount != 3) {
-        runtimeError("insert() takes three arguments (%d given)", argCount);
+        runtimeError("insert() takes 3 arguments (%d given)", argCount);
         return false;
     }
 
     if (!IS_NUMBER(peek(0))) {
-        runtimeError("insert() third argument must be a number", argCount);
+        runtimeError("insert() third argument must be a number");
         return false;
     }
 
@@ -59,7 +59,7 @@ static bool insertListItem(int argCount) {
 
 static bool popListItem(int argCount) {
     if (argCount < 1 || argCount > 2) {
-        runtimeError("pop() takes either one or two arguments (%d  given)", argCount);
+        runtimeError("pop() takes either 1 or 2 arguments (%d  given)", argCount);
         return false;
     }
 
@@ -119,7 +119,7 @@ static bool popListItem(int argCount) {
 
 static bool containsListItem(int argCount) {
     if (argCount != 2) {
-        runtimeError("contains() contains takes 2 arguments (%d  given)", argCount);
+        runtimeError("contains() takes 2 arguments (%d  given)", argCount);
         return false;
     }
 
@@ -157,7 +157,7 @@ bool listMethods(char *method, int argCount) {
 
 static bool getDictItem(int argCount) {
     if (argCount != 3) {
-        runtimeError("get() takes three arguments (%d  given)", argCount);
+        runtimeError("get() takes 3 arguments (%d  given)", argCount);
         return false;
     }
 
@@ -184,7 +184,7 @@ static bool getDictItem(int argCount) {
 
 static bool removeDictItem(int argCount) {
     if (argCount != 2) {
-        runtimeError("remove() takes two arguments (%d  given)", argCount);
+        runtimeError("remove() takes 2 arguments (%d  given)", argCount);
         return false;
     }
 
@@ -209,13 +209,13 @@ static bool removeDictItem(int argCount) {
         }
     }
 
-    runtimeError("Key %s passed to remove() does not exist", key);
+    runtimeError("Key '%s' passed to remove() does not exist", key);
     return false;
 }
 
 static bool dictItemExists(int argCount) {
     if (argCount != 2) {
-        runtimeError("exists() takes two arguments (%d  given)", argCount);
+        runtimeError("exists() takes 2 arguments (%d  given)", argCount);
         return false;
     }
 
